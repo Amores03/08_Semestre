@@ -1,0 +1,31 @@
+
+services:
+  db:
+    container_name: ${CONTAINER_NAME}
+    image: mysql:8.0
+    ports:
+      - 3306:3306
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQ_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    volumes:
+      - mysql-data:/var/lib/mysql
+
+  phpadmin:
+    depends_on:
+      - db
+    image: phpmyadmin:5.2.0-apache
+    ports:
+      - 3307:80
+    environment:
+      PMA_HOST: db
+      PMA_PORT: 3306
+      PMA_USER: root
+      PMA_PASSWORD: ${MYSQ_ROOT_PASSWORD}
+
+volumes:
+  mysql-data:
+    external: false
