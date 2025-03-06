@@ -1,137 +1,132 @@
-import tkinter as tk
-from tkinter import ttk
+import sys
 import matplotlib.pyplot as plt
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLineEdit, QLabel, QTableWidget, QTableWidgetItem, QGroupBox, QGridLayout, QTextEdit
+from PyQt5.QtGui import QFont
+from PyQt5.QtCore import Qt
 
+class LineDrawingApp(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Generación de Triángulo - Algoritmo DDA")
+        self.setGeometry(100, 100, 900, 600)
+        self.initUI()
 
-def dda_algorithm(x1, y1, x2, y2):
-    points = []
-    dx = x2 - x1
-    dy = y2 - y1
-    steps = max(abs(dx), abs(dy))
+    def initUI(self):
+        layout = QHBoxLayout()
+        control_panel = QVBoxLayout()
+        
+        # Contenedor de coordenadas
+        coord_group = QGroupBox("Coordenadas")
+        coord_group.setFont(QFont("Arial", 10, QFont.Bold))
+        grid = QGridLayout()
+        
+        self.coord_inputs = {}
+        for i, point in enumerate(['A', 'B', 'C']):
+            grid.addWidget(QLabel(f"{point} X:"), i, 0)
+            self.coord_inputs[f"x{point}"] = QLineEdit()
+            grid.addWidget(self.coord_inputs[f"x{point}"], i, 1)
+            grid.addWidget(QLabel(f"{point} Y:"), i, 2)
+            self.coord_inputs[f"y{point}"] = QLineEdit()
+            grid.addWidget(self.coord_inputs[f"y{point}"], i, 3)
+        
+        coord_group.setLayout(grid)
+        control_panel.addWidget(coord_group)
+        
+        # Botones
+        button_layout = QHBoxLayout()
+        self.draw_button = QPushButton("Dibujar")
+        self.draw_button.setStyleSheet("background-color: lightblue;")
+        self.draw_button.clicked.connect(self.draw_triangle)
+        button_layout.addWidget(self.draw_button)
+        
+        self.clear_button = QPushButton("Limpiar")
+        self.clear_button.setStyleSheet("background-color: lightcoral;")
+        self.clear_button.clicked.connect(self.clear_all)
+        button_layout.addWidget(self.clear_button)
+        
+        control_panel.addLayout(button_layout)
+        
+        # Tablas
+        self.tables = {}
+        table_layout = QHBoxLayout()
+        for label in ['A-B', 'B-C', 'C-A']:
+            table_group = QVBoxLayout()
+            table_title = QLabel(f"Puntos {label}")
+            table_title.setAlignment(Qt.AlignCenter)
+            table_group.addWidget(table_title)
+            table = QTableWidget()
+            table.setColumnCount(2)
+            table.setHorizontalHeaderLabels(["X", "Y"])
+            table.setFixedWidth(200)
+            self.tables[label] = table
+            table_group.addWidget(table)
+            table_layout.addLayout(table_group)
+        
+        control_panel.addLayout(table_layout)
+        
+        # Información de pendiente
+        self.slope_info = {}
+        for label in ['A-B', 'B-C', 'C-A']:
+            text_box = QTextEdit()
+            text_box.setReadOnly(True)
+            text_box.setFixedHeight(50)
+            control_panel.addWidget(text_box)
+            self.slope_info[label] = text_box
+        
+        # Gráfico
+        self.figure, self.ax = plt.subplots()
+        self.canvas = FigureCanvas(self.figure)
+        
+        layout.addLayout(control_panel, 2)
+        layout.addWidget(self.canvas, 5)
+        self.setLayout(layout)
+    
+    def draw_triangle(self):
+        self.ax.clear()
+        points = [(int(self.coord_inputs[f"x{p}"].text()), int(self.coord_inputs[f"y{p}"].text())) for p in "ABC"]
+        
+        self.ax.fill([p[0] for p in points], [p[1] for p in points], 'cyan', alpha=0.5)
+        self.update_tables(points)
+        self.update_slopes(points)
+        self.canvas.draw()
+    
+    def update_tables(self, points):
+        for table, (p1, p2) in zip(self.tables.values(), [(0,1), (1,2), (2,0)]):
+            table.setRowCount(0)
+            x1, y1 = points[p1]
+            x2, y2 = points[p2]
+            dx, dy = x2 - x1, y2 - y1
+            steps = max(abs(dx), abs(dy))
+            x_inc, y_inc = dx / steps, dy / steps
+            x, y = x1, y1
+            for i in range(steps + 1):
+                table.insertRow(i)
+                table.setItem(i, 0, QTableWidgetItem(str(round(x))))
+                table.setItem(i, 1, QTableWidgetItem(str(round(y))))
+                x += x_inc
+                y += y_inc
+    
+    def update_slopes(self, points):
+        for (p1, p2), label in zip([(0,1), (1,2), (2,0)], ['A-B', 'B-C', 'C-A']):
+            x1, y1 = points[p1]
+            x2, y2 = points[p2]
+            slope = (y2 - y1) / (x2 - x1) if x2 - x1 != 0 else float('inf')
+            direction = "de izquierda a derecha" if x2 > x1 else "de derecha a izquierda"
+            self.slope_info[label].setText(f"Pendiente y dirección de {label}:\nTiene una pendiente de {round(slope, 2)} y va {direction}")
+    
+    def clear_all(self):
+        self.ax.clear()
+        self.canvas.draw()
+        for table in self.tables.values():
+            table.setRowCount(0)
+        for input_field in self.coord_inputs.values():
+            input_field.clear()
+        for text_box in self.slope_info.values():
+            text_box.clear()
 
-    Xinc = dx / steps
-    Yinc = dy / steps
-
-    x, y = x1, y1
-    for i in range(int(steps) + 1):
-        points.append((x, y))  # Guardamos valores con decimales
-        x += Xinc
-        y += Yinc
-    return points
-
-
-def plot_line():
-    x1 = float(entry_x1.get())
-    y1 = float(entry_y1.get())
-    x2 = float(entry_x2.get())
-    y2 = float(entry_y2.get())
-
-    points = dda_algorithm(x1, y1, x2, y2)
-
-    # Limpiar tabla
-    for row in tree.get_children():
-        tree.delete(row)
-
-    # Llenar tabla con valores decimales
-    for i, (x, y) in enumerate(points):
-        tree.insert("", "end", values=(i, f"{x:.2f}", f"{y:.2f}"))  # Formato con 2 decimales
-
-    # Graficar línea
-    ax.clear()
-    ax.plot([p[0] for p in points], [p[1] for p in points], marker="o", color="b", linestyle="-")
-    ax.set_xlim(min(x1, x2) - 1, max(x1, x2) + 1)
-    ax.set_ylim(min(y1, y2) - 1, max(y1, y2) + 1)
-    ax.set_xlabel("X")
-    ax.set_ylabel("Y")
-    ax.grid(True)
-    canvas.draw()
-
-
-def clear_all():
-    entry_x1.delete(0, tk.END)
-    entry_y1.delete(0, tk.END)
-    entry_x2.delete(0, tk.END)
-    entry_y2.delete(0, tk.END)
-
-    for row in tree.get_children():
-        tree.delete(row)
-
-    ax.clear()
-    canvas.draw()
-
-
-def clear_line():
-    for row in tree.get_children():
-        tree.delete(row)
-    ax.clear()
-    canvas.draw()
-
-
-# Crear ventana principal
-root = tk.Tk()
-root.title("Algoritmo DDA - Generación de Líneas")
-root.geometry("900x600")
-
-# Sección principal
-frame_main = tk.Frame(root)
-frame_main.pack(side=tk.LEFT, padx=10, pady=10)
-
-# Sección de entrada de coordenadas
-frame_input = tk.Frame(frame_main)
-frame_input.pack()
-
-label_a = tk.Label(frame_input, text="Coordenadas A", font=("Arial", 10, "bold"))
-label_a.grid(row=0, column=0, columnspan=2)
-
-tk.Label(frame_input, text="X1:").grid(row=1, column=0)
-tk.Label(frame_input, text="Y1:").grid(row=2, column=0)
-entry_x1 = tk.Entry(frame_input, width=5)
-entry_y1 = tk.Entry(frame_input, width=5)
-entry_x1.grid(row=1, column=1)
-entry_y1.grid(row=2, column=1)
-
-label_b = tk.Label(frame_input, text="Coordenadas B", font=("Arial", 10, "bold"))
-label_b.grid(row=3, column=0, columnspan=2)
-
-tk.Label(frame_input, text="X2:").grid(row=4, column=0)
-tk.Label(frame_input, text="Y2:").grid(row=5, column=0)
-entry_x2 = tk.Entry(frame_input, width=5)
-entry_y2 = tk.Entry(frame_input, width=5)
-entry_x2.grid(row=4, column=1)
-entry_y2.grid(row=5, column=1)
-
-btn_generate = tk.Button(frame_input, text="Generar Línea", command=plot_line, bg="lightblue", font=("Arial", 10))
-btn_generate.grid(row=6, column=0, columnspan=2, pady=5)
-
-btn_clear = tk.Button(frame_input, text="Eliminar Todo", command=clear_all, bg="lightcoral", font=("Arial", 10))
-btn_clear.grid(row=7, column=0, columnspan=2, pady=5)
-
-btn_clear_line = tk.Button(frame_input, text="Borrar Línea", command=clear_line, bg="lightgray", font=("Arial", 10))
-btn_clear_line.grid(row=8, column=0, columnspan=2, pady=5)
-
-# Tabla de valores
-frame_table = tk.Frame(frame_main)
-frame_table.pack(pady=10)
-
-tree = ttk.Treeview(frame_table, columns=("#", "X", "Y"), show="headings", height=5)
-tree.column("#", width=30, anchor="center")
-tree.column("X", width=50, anchor="center")
-tree.column("Y", width=50, anchor="center")
-tree.heading("#", text="#")
-tree.heading("X", text="X")
-tree.heading("Y", text="Y")
-tree.pack()
-
-# Sección de gráfica
-frame_plot = tk.Frame(root)
-frame_plot.pack(side=tk.RIGHT, padx=10, pady=10, expand=True, fill=tk.BOTH)
-
-fig, ax = plt.subplots(figsize=(7, 7))
-canvas = FigureCanvasTkAgg(fig, master=frame_plot)
-canvas.get_tk_widget().pack(expand=True, fill=tk.BOTH)
-
-root.mainloop()
-
-
-
+if __name__ == '__main__':
+    app = QApplication(sys.argv)
+    ex = LineDrawingApp()
+    ex.show()
+    sys.exit(app.exec_())
